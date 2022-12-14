@@ -178,6 +178,13 @@ bool onPIGS() //QPIGS<cr>: Device general status parameters inquiry
     {
       _qpigsMessage.cSOC = constrain(round(mapf(_qpigsMessage.battV, _qpiriMessage.battreChargeV, _qpiriMessage.battFloatV, 0, 100)),0,100);
     }
+
+    //convert Fahrenheit to Celsius
+    if (_qpigsMessage.heatSinkDegC > 65)
+    {
+      _qpigsMessage.heatSinkDegC = round((_qpigsMessage.heatSinkDegC - 32) * 0.5556);
+    }
+    
     return true;
   }
 }
