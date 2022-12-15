@@ -66,6 +66,17 @@ struct QpigsMessage
   float cSOC;
 };
 
+struct LastStats
+{
+  
+  byte battPercent;
+  float heatSinkDegC;
+
+  String operationMode;
+  float cSOC;
+
+};
+
 struct QmodMessage
 {
   char mode;

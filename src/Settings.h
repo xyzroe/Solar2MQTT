@@ -17,6 +17,10 @@ public:
   String _mqttUser = "";      //mqtt username to login
   String _mqttPassword = "";  //mqtt passwort
   String _mqttTopic = "";     //MQTT Topic
+  
+  String _tgBotToken = "";     //TG bot tokent
+  String _tgChatId = "";     //TG chat id
+
   short _mqttPort = 0;        //mqtt server port
   short _mqttRefresh = 0;     //mqtt Send Interval in Seconds
 
@@ -103,6 +107,9 @@ public:
       readString(_mqttPassword, 0x20, 0xC0);
       readString(_mqttUser, 0x20, 0xE0);
       _mqttPort = readShort(0x100);
+
+      readString(_tgBotToken, 0x40, 0x120);
+      readString(_tgChatId, 0x20, 0x160);
     }
 
     EEPROM.end();
@@ -126,6 +133,9 @@ public:
     writeString(_mqttUser, 0x20, 0xE0);
     writeShort(_mqttPort, 0x100);
 
+    writeString(_tgBotToken, 0x40, 0x120);
+    writeString(_tgChatId, 0x20, 0x160);
+
     EEPROM.commit();
 
     _valid = true;
@@ -141,6 +151,9 @@ public:
   _mqttTopic = "";
   _mqttPort = 0;
   _mqttRefresh = 0;
+
+  _tgBotToken = "";
+  _tgChatId = "";
   save();
   delay(500);
   }

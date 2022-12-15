@@ -11,6 +11,7 @@ QflagMessage _qflagMessage = {0};
 QidMessage _qidMessage = {0};
 QchgcrMessage _qchgcrMessage ={0};
 
+LastStats _lastStats = {0};
 
 QpiriMessage _qpiriMessage = {0};
 
@@ -184,7 +185,7 @@ bool onPIGS() //QPIGS<cr>: Device general status parameters inquiry
     {
       _qpigsMessage.heatSinkDegC = round((_qpigsMessage.heatSinkDegC - 32) * 0.5556);
     }
-    
+
     return true;
   }
 }

@@ -13,6 +13,9 @@
 #include <ESPAsyncTCP.h>
 #include <ESPAsyncWebServer.h>
 
+#include <ESP8266HTTPClient.h>
+HTTPClient http;
+
 #include "inverter.h"
 #include "Settings.h"
 
@@ -32,6 +35,8 @@ extern QmodMessage _qmodMessage;
 extern QpiriMessage _qpiriMessage;
 
 extern QRaw _qRaw;
+
+extern LastStats _lastStats;
 
 String topic = "/"; //Default first part of topic. We will add device ID in setup
 
@@ -97,6 +102,21 @@ static void handle_update_progress_cb(AsyncWebServerRequest *request, String fil
   }
 }
 
+void sendTgMsg(String text)
+{
+  String tg_bot_api_url = "https://api.telegram.org/bot";
+            
+  WiFiClientSecure clientSSL;
+
+  clientSSL.setInsecure(); //the magic line, use with caution
+  clientSSL.connect(tg_bot_api_url, 443);
+
+  String fullLink = tg_bot_api_url + _settings._tgBotToken + "/sendMessage?chat_id=" + _settings._tgChatId + "&parse_mode=markdown&text=" + text; 
+  http.begin(clientSSL, fullLink);
+  http.GET();
+  http.end();
+}
+
 void setup()
 {
   _settings.load();
@@ -135,6 +155,10 @@ void setup()
   Serial1.println(_settings._mqttRefresh);
   Serial1.printf("Mqtt Topic:\t");
   Serial1.println(_settings._mqttTopic);
+  Serial1.printf("Telegram bot token:\t");
+  Serial1.println(_settings._tgBotToken);
+  Serial1.printf("Telegram chat id:\t");
+  Serial1.println(_settings._tgChatId);
 #endif
   //create custom wifimanager fields
 
@@ -146,6 +170,9 @@ void setup()
   AsyncWiFiManagerParameter custom_mqtt_refresh("mqtt_refresh", "MQTT Send Interval", NULL, 4);
   AsyncWiFiManagerParameter custom_device_name("device_name", "Device Name", NULL, 40);
 
+  AsyncWiFiManagerParameter custom_tg_bot_token("tg_bot_token", "Telegram bot token", NULL, 40);
+  AsyncWiFiManagerParameter custom_tg_chat_id("tg_chat_id", "Telegram chat id", NULL, 40);
+
   wm.addParameter(&custom_mqtt_server);
   wm.addParameter(&custom_mqtt_user);
   wm.addParameter(&custom_mqtt_pass);
@@ -153,6 +180,9 @@ void setup()
   wm.addParameter(&custom_mqtt_port);
   wm.addParameter(&custom_mqtt_refresh);
   wm.addParameter(&custom_device_name);
+
+  wm.addParameter(&custom_tg_bot_token);
+  wm.addParameter(&custom_tg_chat_id);
 
   bool res = wm.autoConnect("Solar-AP");
 
@@ -169,6 +199,9 @@ void setup()
     _settings._deviceName = custom_device_name.getValue();
     _settings._mqttTopic = custom_mqtt_topic.getValue();
     _settings._mqttRefresh = atoi(custom_mqtt_refresh.getValue());
+
+    _settings._tgBotToken = custom_tg_bot_token.getValue();
+    _settings._tgChatId = custom_tg_chat_id.getValue();
 
     _settings.save();
     delay(500);
@@ -289,6 +322,9 @@ void setup()
                 SettingsJson["mqtt_user"] = _settings._mqttUser;
                 SettingsJson["mqtt_password"] = _settings._mqttPassword;
                 SettingsJson["mqtt_refresh"] = _settings._mqttRefresh;
+
+                SettingsJson["tg_bot_token"] = _settings._tgBotToken;
+                SettingsJson["tg_chat_id"] = _settings._tgChatId;
                 serializeJson(SettingsJson, *response);
                 request->send(response);
               });
@@ -303,7 +339,10 @@ void setup()
                 _settings._mqttTopic = request->arg("post_mqttTopic");
                 _settings._mqttRefresh = request->arg("post_mqttRefresh").toInt();
                 _settings._deviceName = request->arg("post_deviceName");
-                Serial.print(_settings._mqttServer);
+
+                _settings._tgBotToken = request->arg("post_tgBotToken");
+                _settings._tgChatId = request->arg("post_tgChatId");
+                //Serial.print(_settings._mqttServer);
                 _settings.save();
                 delay(500);
                 _settings.load();
@@ -359,6 +398,9 @@ void setup()
     mqttclient.subscribe((String(topic) + String("/Device Data/Current max charging current")).c_str());
     mqttclient.subscribe((String(topic) + String("/Device Data/Set Command")).c_str());
   }
+
+  sendTgMsg("Solar2MQTT started 🚀");
+  
 }
 //end void setup
 
@@ -369,7 +411,7 @@ void loop()
 {
   // Make sure wifi is in the right mode
   if (WiFi.status() == WL_CONNECTED)
-  { //No use going to next step unless WIFI is up and running.
+  { //no use going to next step unless WIFI is up and running.
     MDNS.update();
     mqttclient.loop(); // Check if we have something to read from MQTT
 
@@ -402,6 +444,7 @@ void loop()
       askInverterOnce = false;
     }
     sendtoMQTT(); // Update data to MQTT server if we should
+    prepareTgInfo();
   }
   if (restartNow)
   {
@@ -413,6 +456,52 @@ void loop()
   yield();
 }
 //End void loop
+bool prepareTgInfo()
+{ 
+  String msg;
+  if (_qmodMessage.operationMode != _lastStats.operationMode) 
+  {
+    _lastStats.operationMode = _qmodMessage.operationMode;
+    msg = msg + "Mode: " + String(_lastStats.operationMode) + "🛠" + "%0A";
+  }
+  if (_qpigsMessage.battPercent != _lastStats.battPercent) 
+  {
+    _lastStats.battPercent = _qpigsMessage.battPercent;
+    if (_lastStats.battPercent <= 15)
+    {
+      msg = msg + "Battery is low 🪫 (" + String(_lastStats.battPercent) + "%)" + "%0A";
+    }
+    else if (_lastStats.battPercent == 100)
+    {
+      msg = msg + "Battery is full 🔋 (" + String(_lastStats.battPercent) + "%)" + "%0A";
+    }
+    //else 
+    //{
+    //  msg = msg + "Battery - " + String(_lastStats.battPercent) + "%" + "%0A";
+    //}
+  }
+  if (_qpigsMessage.heatSinkDegC != _lastStats.heatSinkDegC) 
+  {
+    _lastStats.heatSinkDegC = _qpigsMessage.heatSinkDegC;
+    if (_lastStats.heatSinkDegC > 35)
+    {
+      msg = msg + "Temperature is " + String(_lastStats.heatSinkDegC) + "°C 🌡️" + "%0A";
+    }
+  }
+
+  if (_qpigsMessage.cSOC != _lastStats.cSOC) 
+  {
+    _lastStats.cSOC = _qpigsMessage.cSOC;
+    msg = msg + "cSOC is " + String(_lastStats.cSOC) + "%" + "%0A";
+  }
+
+  if (msg.length() > 0)
+  {
+    sendTgMsg(msg);
+  }
+  
+  return true;
+}
 
 bool sendtoMQTT()
 {
