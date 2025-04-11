@@ -173,11 +173,11 @@ bool onPIGS() //QPIGS<cr>: Device general status parameters inquiry
     //calculate the real SOC
     if (_qpigsMessage.sccBattV > _qpigsMessage.battV)
     {
-      _qpigsMessage.cSOC = constrain(round(mapf(_qpigsMessage.battV, _qpiriMessage.battreChargeV, _qpiriMessage.battBulkV, 0, 100)),0,100);
+      _qpigsMessage.cSOC = constrain(round(mapf(_qpigsMessage.battV, _qpiriMessage.battReChargeV, _qpiriMessage.battBulkV, 0, 100)),0,100);
     }
     else
     {
-      _qpigsMessage.cSOC = constrain(round(mapf(_qpigsMessage.battV, _qpiriMessage.battreChargeV, _qpiriMessage.battFloatV, 0, 100)),0,100);
+      _qpigsMessage.cSOC = constrain(round(mapf(_qpigsMessage.battV, _qpiriMessage.battReChargeV, _qpiriMessage.battFloatV, 0, 100)),0,100);
     }
 
     //convert Fahrenheit to Celsius
@@ -210,7 +210,7 @@ bool onPIRI() //QPIRI<cr>: Device Rating Information inquiry
     _qpiriMessage.acOutRatingW = getNextFloat(_commandBuffer, index); //IIII
     _qpiriMessage.battRatingV = getNextFloat(_commandBuffer, index); //JJ.J
 
-    _qpiriMessage.battreChargeV = getNextFloat(_commandBuffer, index); //KK.K
+    _qpiriMessage.battReChargeV = getNextFloat(_commandBuffer, index); //KK.K
     _qpiriMessage.battUnderV = getNextFloat(_commandBuffer, index); //1JJ.J
     _qpiriMessage.battBulkV = getNextFloat(_commandBuffer, index); //1KK.K
     _qpiriMessage.battFloatV = getNextFloat(_commandBuffer, index); //LL.L
@@ -244,6 +244,7 @@ bool onMOD() //QMOD<cr>: Device Mode inquiry
     switch (_commandBuffer[1])
     {
     default:
+      return false; //just try
       _qmodMessage.operationMode = "Undefined, Origin: " + _commandBuffer[1];
       break;
     case 'P':

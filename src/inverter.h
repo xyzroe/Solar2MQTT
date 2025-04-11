@@ -74,7 +74,7 @@ struct LastStats
 
   String operationMode;
   float cSOC;
-
+  char mode;
 };
 
 struct QmodMessage
@@ -141,7 +141,7 @@ struct QpiriMessage
   float acOutRatungVA; //AC output rating apparent power
   float acOutRatingW;  //AC output rating active power
   float battRatingV;   //Battery rating voltage
-  float battreChargeV; //Battery re-charge voltage
+  float battReChargeV; //Battery re-charge voltage
   float battUnderV;    //Battery under voltage
   float battBulkV;     //Battery bulk voltage
   float battFloatV;    //Battery float voltage

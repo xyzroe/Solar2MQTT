@@ -23,6 +23,7 @@ HTTPClient http;
 #include "webpages/main.h"         //landing page with menu
 #include "webpages/settings.h"     //settings page
 #include "webpages/settingsedit.h" //mqtt settings page
+#include "webpages/config.h" //config invrter page
 
 WiFiClient client;
 
@@ -91,7 +92,10 @@ static void handle_update_progress_cb(AsyncWebServerRequest *request, String fil
     else
     {
 
-      AsyncWebServerResponse *response = request->beginResponse(200, "text/plain", "Please wait while the device is booting new Firmware");
+      AsyncResponseStream *response = request->beginResponseStream("text/html");
+      response->printf_P(HTML_HEAD);
+      response->printf_P("<figure class='text-center'><h1>Updating</h1><h4>Please wait while the device is booting new firmware...</h4></figure>");
+      response->printf_P(HTML_FOOT);
       response->addHeader("Refresh", "10; url=/");
       response->addHeader("Connection", "close");
       request->send(response);
@@ -266,7 +270,10 @@ void setup()
 
     server.on("/reboot", HTTP_GET, [](AsyncWebServerRequest *request)
               {
-                AsyncWebServerResponse *response = request->beginResponse(200, "text/plain", "Please wait while the device reboots...");
+                AsyncResponseStream *response = request->beginResponseStream("text/html");
+                response->printf_P(HTML_HEAD);
+                response->printf_P("<figure class='text-center'><h1>Rebooting</h1><h4>Please wait while the device reboots...</h4></figure>");
+                response->printf_P(HTML_FOOT);
                 response->addHeader("Refresh", "15; url=/");
                 response->addHeader("Connection", "close");
                 request->send(response);
@@ -283,7 +290,10 @@ void setup()
 
     server.on("/reset", HTTP_GET, [](AsyncWebServerRequest *request)
               {
-                AsyncWebServerResponse *response = request->beginResponse(200, "text/plain", "Device is Erasing...");
+                AsyncResponseStream *response = request->beginResponseStream("text/html");
+                response->printf_P(HTML_HEAD);
+                response->printf_P("<figure class='text-center'><h1>Erasing</h1><h4>Please wait while the device is erasing...</h4></figure>");
+                response->printf_P(HTML_FOOT);
                 response->addHeader("Refresh", "15; url=/");
                 response->addHeader("Connection", "close");
                 request->send(response);
@@ -371,9 +381,54 @@ void setup()
                   valChange = true;
                   _qpiriMessage.battFloatV = p->value().toFloat(); //const string zu int
                 }
+                if (p->name() == "ReChargeV")
+                {
+                  valChange = true;
+                  _qpiriMessage.battReChargeV = p->value().toFloat(); //const string zu int
+                }
+                if (p->name() == "UnderV")
+                {
+                  valChange = true;
+                  _qpiriMessage.battUnderV = p->value().toFloat(); //const string zu int
+                }
                 request->send(200, "text/plain", "message received");
               });
 
+    server.on("/configjson", HTTP_GET, [](AsyncWebServerRequest *request)
+              {
+                AsyncResponseStream *response = request->beginResponseStream("application/json");
+                DynamicJsonDocument ConfigJson(256);
+                ConfigJson["maxcharge"] = _qpiriMessage.battMaxChrgA;
+                ConfigJson["maxaccharge"] = _qpiriMessage.battMaxAcChrgA;
+                ConfigJson["PCVV"] = _qpiriMessage.battBulkV;
+                ConfigJson["PBFT"] = _qpiriMessage.battFloatV;
+                ConfigJson["ReChargeV"] = _qpiriMessage.battReChargeV; 
+                ConfigJson["UnderV"] = _qpiriMessage.battUnderV;    
+                serializeJson(ConfigJson, *response);
+                request->send(response);
+              });
+
+    server.on("/configedit", HTTP_GET, [](AsyncWebServerRequest *request)
+              {
+                AsyncResponseStream *response = request->beginResponseStream("text/html");
+                response->printf_P(HTML_HEAD);
+                response->printf_P(HTML_CONFIG_EDIT);
+                response->printf_P(HTML_FOOT);
+                request->send(response);
+              });
+
+    server.on("/configsave", HTTP_POST, [](AsyncWebServerRequest *request)
+              {
+                request->redirect("/configedit");
+                _qpiriMessage.battMaxChrgA = request->arg("post_maxcharge").toInt();
+                _qpiriMessage.battMaxAcChrgA = request->arg("post_maxaccharge").toInt();
+                _qpiriMessage.battBulkV = request->arg("post_PCVV_battBulkV").toFloat();
+                _qpiriMessage.battFloatV = request->arg("post_PBFT_battFloatV").toFloat();
+                _qpiriMessage.battReChargeV = request->arg("post_ReChargeV_battReChargeV").toFloat();
+                _qpiriMessage.battUnderV = request->arg("post_UnderV_battUnderV").toFloat();
+                valChange = true;
+                delay(500);
+              });
     server.on(
         "/update", HTTP_POST, [](AsyncWebServerRequest *request)
         {
@@ -462,14 +517,15 @@ bool prepareTgInfo()
   if (_qmodMessage.operationMode != _lastStats.operationMode) 
   {
     _lastStats.operationMode = _qmodMessage.operationMode;
-    msg = msg + "Mode: " + String(_lastStats.operationMode) + "🛠" + "%0A";
+    _lastStats.mode = _qmodMessage.mode;
+    msg = msg + "Mode 🛠 : *" + String(_lastStats.operationMode) + " [" + String(_lastStats.mode) + "] " + "*" + "%0A";
   }
   if (_qpigsMessage.battPercent != _lastStats.battPercent) 
   {
     _lastStats.battPercent = _qpigsMessage.battPercent;
     if (_lastStats.battPercent <= 15)
     {
-      msg = msg + "Battery is low 🪫 (" + String(_lastStats.battPercent) + "%)" + "%0A";
+      msg = msg + "Battery is *low* 🪫 (" + String(_lastStats.battPercent) + "%)" + "%0A";
     }
     else if (_lastStats.battPercent == 100)
     {
@@ -491,8 +547,11 @@ bool prepareTgInfo()
 
   if (_qpigsMessage.cSOC != _lastStats.cSOC) 
   {
-    _lastStats.cSOC = _qpigsMessage.cSOC;
-    msg = msg + "cSOC is " + String(_lastStats.cSOC) + "%" + "%0A";
+    if (abs(_qpigsMessage.cSOC - _lastStats.cSOC) >= 5) 
+    {
+      _lastStats.cSOC = _qpigsMessage.cSOC;
+      msg = msg + "cSOC is " + String(_lastStats.cSOC) + "%" + "%0A";
+    }
   }
 
   if (msg.length() > 0)
@@ -565,7 +624,7 @@ bool sendtoMQTT()
   mqttclient.publish((String(topic) + String("/Device Data/AC output rating active power")).c_str(), String(_qpiriMessage.acOutRatingW).c_str());
   mqttclient.publish((String(topic) + String("/Device Data/Battery rating voltage")).c_str(), String(_qpiriMessage.battRatingV).c_str());
 
-  mqttclient.publish((String(topic) + String("/Device Data/Battery re-charge voltage")).c_str(), String(_qpiriMessage.battreChargeV).c_str());
+  mqttclient.publish((String(topic) + String("/Device Data/Battery re-charge voltage")).c_str(), String(_qpiriMessage.battReChargeV).c_str());
   mqttclient.publish((String(topic) + String("/Device Data/Battery under voltage")).c_str(), String(_qpiriMessage.battUnderV).c_str());
   mqttclient.publish((String(topic) + String("/Device Data/Battery bulk voltage")).c_str(), String(_qpiriMessage.battBulkV).c_str());
   mqttclient.publish((String(topic) + String("/Device Data/Battery float voltage")).c_str(), String(_qpiriMessage.battFloatV).c_str());

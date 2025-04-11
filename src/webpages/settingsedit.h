@@ -25,7 +25,7 @@ const char HTML_SETTINGS_EDIT[] PROGMEM = R"rawliteral(
 <span class="input-group-text w-50" id="mqtttopicdesc">MQTT Topic</span>
 <input type="text" class="form-control" aria-describedby="mqtttopicdesc" id="mqtttopic" name="post_mqttTopic" value="">
 </div>
-<div class="input-group mb-2">
+<div class="input-group mb-3">
 <span class="input-group-text w-50" id="mqttrefreshdesc">MQTT Refresh</span>
 <input type="text" class="form-control" aria-describedby="mqttrefreshdesc" id="mqttrefresh" name="post_mqttRefresh" value="">
 </div>
@@ -40,7 +40,7 @@ const char HTML_SETTINGS_EDIT[] PROGMEM = R"rawliteral(
 </div>
 
 <div class="d-grid gap-2">
-<input class="btn btn-primary" type="submit" value="Save settings">
+<input class="btn btn-warning" type="submit" value="Save settings">
 </form>
 <a class="btn btn-primary" href="/settings" role="button">Back</a>
 </div><script>
